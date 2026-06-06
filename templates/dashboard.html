@@ -169,15 +169,21 @@
 <!-- Charts / Analytics Section -->
 <div class="analytics-section">
     <!-- Mood Trend Line Graph -->
-    <div class="glass-card">
-        <h3 style="margin-bottom: 1.5rem; font-size: 1.15rem; display: flex; align-items: center; gap: 0.5rem;">
+    <div class="glass-card" id="moodChartCard">
+        <h3 style="margin-bottom: 1.5rem; font-size: 1.15rem; display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
             <svg aria-hidden="true" style="width: 20px; height: 20px; stroke: var(--color-primary); fill: none;" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
             </svg>
             Mood Analytics (Past 7 Logs)
+            <!-- Live indicator badge -->
+            <span class="live-badge" aria-label="Live updating chart" title="Chart refreshes every 30 seconds">
+                <span class="live-dot" aria-hidden="true"></span>
+                LIVE
+            </span>
+            <span id="chartLastUpdated" style="font-size: 0.72rem; color: var(--text-muted); font-weight: 400; margin-left: auto;"></span>
         </h3>
         <div class="chart-container">
-            <canvas id="moodTrendChart" data-history="{{ chart_data|tojson }}"></canvas>
+            <canvas id="moodTrendChart" data-history="{{ chart_data|tojson }}" data-poll-interval="30000"></canvas>
         </div>
     </div>
     
@@ -195,6 +201,7 @@
         </div>
     </div>
 </div>
+
 
 <!-- Log History Feed -->
 <div class="glass-card">

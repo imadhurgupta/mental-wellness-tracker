@@ -1,6 +1,7 @@
 document.addEventListener('DOMContentLoaded', function () {
     initMoodSelector();
     initAnalyticsCharts();
+    initRealtimeCharts();
     initBreathingGuide();
     initPomodoroTimer();
     initAmbientSounds();
@@ -54,148 +55,262 @@ function initMoodSelector() {
 }
 
 /* ==========================================================================
-   2. Chart.js Implementation
+   2. Chart.js Implementation (module-scoped instances for live updates)
    ========================================================================== */
-function initAnalyticsCharts() {
-    const moodCanvas = document.getElementById('moodTrendChart');
-    const triggerCanvas = document.getElementById('triggersDistributionChart');
 
-    if (!moodCanvas) return;
+// Module-scope chart instances and container refs — set once, reused by polling
+let _moodChart     = null;
+let _triggerChart  = null;
+let _latestMoods   = [];
+let _moodContainer    = null;  // .chart-container for mood chart
+let _triggerContainer = null;  // .chart-container for trigger chart
 
-    // Retrieve data from data attributes
-    const chartData = JSON.parse(moodCanvas.getAttribute('data-history') || '{}');
-    const triggerData = JSON.parse(triggerCanvas?.getAttribute('data-triggers') || '{}');
+const CHART_FONT = { family: "'Inter', sans-serif", size: 11 };
+const BAR_BG_COLORS = [
+    'rgba(239, 68, 68, 0.45)',
+    'rgba(245, 158, 11, 0.45)',
+    'rgba(16, 185, 129, 0.45)',
+    'rgba(6, 182, 212, 0.45)',
+    'rgba(139, 92, 246, 0.45)',
+    'rgba(236, 72, 153, 0.45)',
+    'rgba(251, 191, 36, 0.45)'
+];
+const BAR_BORDER_COLORS = ['#EF4444', '#F59E0B', '#10B981', '#06B6D4', '#8B5CF6', '#EC4899', '#FBBF24'];
 
-    // Custom Font Config
-    const chartFontConfig = {
-        family: "'Inter', sans-serif",
-        size: 11
-    };
+// Shared "no data" placeholder HTML
+const NO_MOOD_MSG    = '<div class="chart-empty-msg">Log your mood to start seeing trends.</div>';
+const NO_TRIGGER_MSG = '<div class="chart-empty-msg">No stress triggers logged yet.</div>';
 
-    // 1. Mood Trend Line Chart
-    if (chartData.labels && chartData.labels.length > 0) {
-        new Chart(moodCanvas, {
-            type: 'line',
-            data: {
-                labels: chartData.labels,
-                datasets: [{
-                    label: 'Mood Level',
-                    data: chartData.scores,
-                    borderColor: '#8B5CF6',
-                    backgroundColor: 'rgba(139, 92, 246, 0.1)',
-                    fill: true,
-                    tension: 0.4,
-                    borderWidth: 3,
-                    pointBackgroundColor: '#C084FC',
-                    pointBorderColor: '#0B0F19',
-                    pointHoverRadius: 8,
-                    pointRadius: 5
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { display: false },
-                    tooltip: {
-                        backgroundColor: '#1E293B',
-                        titleColor: '#FFF',
-                        bodyColor: '#E2E8F0',
-                        borderColor: 'rgba(255, 255, 255, 0.1)',
-                        borderWidth: 1,
-                        callbacks: {
-                            label: function(context) {
-                                const index = context.dataIndex;
-                                const moodName = chartData.moods[index];
-                                return ` Mood: ${moodName} (Score: ${context.raw}/5)`;
-                            }
-                        }
-                    }
-                },
-                scales: {
-                    x: {
-                        grid: { color: 'rgba(255, 255, 255, 0.05)' },
-                        ticks: { color: '#9CA3AF', font: chartFontConfig }
-                    },
-                    y: {
-                        min: 1,
-                        max: 5,
-                        grid: { color: 'rgba(255, 255, 255, 0.05)' },
-                        ticks: {
-                            color: '#9CA3AF',
-                            font: chartFontConfig,
-                            stepSize: 1,
-                            callback: function(value) {
-                                const labels = { 1: 'Worst', 2: 'Stressed', 3: 'Neutral', 4: 'Calm', 5: 'Excellent' };
-                                return labels[value] || value;
-                            }
+function buildMoodChart(canvas, chartData) {
+    _latestMoods = chartData.moods || [];
+    return new Chart(canvas, {
+        type: 'line',
+        data: {
+            labels: chartData.labels,
+            datasets: [{
+                label: 'Mood Level',
+                data: chartData.scores,
+                borderColor: '#8B5CF6',
+                backgroundColor: 'rgba(139, 92, 246, 0.1)',
+                fill: true,
+                tension: 0.4,
+                borderWidth: 3,
+                pointBackgroundColor: '#C084FC',
+                pointBorderColor: '#0B0F19',
+                pointHoverRadius: 8,
+                pointRadius: 5
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: { duration: 700, easing: 'easeInOutQuart' },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    backgroundColor: '#1E293B',
+                    titleColor: '#FFF',
+                    bodyColor: '#E2E8F0',
+                    borderColor: 'rgba(255,255,255,0.1)',
+                    borderWidth: 1,
+                    callbacks: {
+                        label: function(context) {
+                            const moodName = _latestMoods[context.dataIndex] || '';
+                            return ` Mood: ${moodName} (Score: ${context.raw}/5)`;
                         }
                     }
                 }
+            },
+            scales: {
+                x: {
+                    grid: { color: 'rgba(255,255,255,0.05)' },
+                    ticks: { color: '#9CA3AF', font: CHART_FONT }
+                },
+                y: {
+                    min: 1, max: 5,
+                    grid: { color: 'rgba(255,255,255,0.05)' },
+                    ticks: {
+                        color: '#9CA3AF',
+                        font: CHART_FONT,
+                        stepSize: 1,
+                        callback: v => ({ 1:'Worst', 2:'Stressed', 3:'Neutral', 4:'Calm', 5:'Excellent' }[v] || v)
+                    }
+                }
             }
-        });
-    } else {
-        // Draw empty message inside canvas container
-        const container = moodCanvas.parentElement;
-        container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#6B7280;font-size:0.9rem;">Log your mood to start seeing trends.</div>';
+        }
+    });
+}
+
+function buildTriggerChart(canvas, triggerData) {
+    const labels = Object.keys(triggerData);
+    const data   = Object.values(triggerData);
+    return new Chart(canvas, {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [{
+                data,
+                backgroundColor: BAR_BG_COLORS.slice(0, labels.length),
+                borderColor:     BAR_BORDER_COLORS.slice(0, labels.length),
+                borderWidth: 1.5,
+                borderRadius: 6
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: { duration: 700, easing: 'easeInOutQuart' },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    backgroundColor: '#1E293B',
+                    titleColor: '#FFF',
+                    bodyColor: '#E2E8F0',
+                    borderColor: 'rgba(255,255,255,0.1)',
+                    borderWidth: 1
+                }
+            },
+            scales: {
+                x: {
+                    grid: { display: false },
+                    ticks: { color: '#9CA3AF', font: CHART_FONT }
+                },
+                y: {
+                    grid: { color: 'rgba(255,255,255,0.05)' },
+                    ticks: { color: '#9CA3AF', font: CHART_FONT, stepSize: 1 }
+                }
+            }
+        }
+    });
+}
+
+/**
+ * Creates a fresh <canvas> inside a container and returns it.
+ * Wipes any existing "no data" overlay first.
+ */
+function _spawnCanvas(container, id) {
+    container.innerHTML = '';
+    const c = document.createElement('canvas');
+    c.id = id;
+    container.appendChild(c);
+    return c;
+}
+
+/**
+ * Renders the "no data yet" placeholder inside a container.
+ * Removes any existing canvas so Chart.js won't complain.
+ */
+function _showNoDataMsg(container, html) {
+    container.innerHTML = html;
+}
+
+function initAnalyticsCharts() {
+    // Grab card element — this is our reliable anchor (always in the DOM)
+    const moodCard = document.getElementById('moodChartCard');
+    if (!moodCard) return;  // Not on dashboard page
+
+    // Store container references at module scope for later use by the polling loop
+    _moodContainer    = moodCard.querySelector('.chart-container');
+    const triggerCard = document.querySelector('.analytics-section .glass-card:last-child');
+    _triggerContainer = triggerCard ? triggerCard.querySelector('.chart-container') : null;
+
+    // Read initial data baked into the HTML by the server
+    const moodCanvas    = _moodContainer ? _moodContainer.querySelector('canvas') : null;
+    const triggerCanvas = _triggerContainer ? _triggerContainer.querySelector('canvas') : null;
+
+    const chartData   = moodCanvas    ? JSON.parse(moodCanvas.getAttribute('data-history')  || '{}') : {};
+    const triggerData = triggerCanvas ? JSON.parse(triggerCanvas.getAttribute('data-triggers') || '{}') : {};
+
+    // Mood chart: render if server gave us data, otherwise show placeholder
+    if (chartData.labels && chartData.labels.length > 0) {
+        _moodChart = buildMoodChart(moodCanvas, chartData);
+    } else if (_moodContainer) {
+        _showNoDataMsg(_moodContainer, NO_MOOD_MSG);
     }
 
-    // 2. Trigger Frequency Bar Chart
-    if (triggerCanvas && Object.keys(triggerData).length > 0) {
-        const labels = Object.keys(triggerData);
-        const data = Object.values(triggerData);
-
-        new Chart(triggerCanvas, {
-            type: 'bar',
-            data: {
-                labels: labels,
-                datasets: [{
-                    data: data,
-                    backgroundColor: [
-                        'rgba(239, 68, 68, 0.45)', // Red
-                        'rgba(245, 158, 11, 0.45)', // Orange
-                        'rgba(16, 185, 129, 0.45)', // Emerald
-                        'rgba(6, 182, 212, 0.45)',  // Cyan
-                        'rgba(139, 92, 246, 0.45)', // Purple
-                        'rgba(236, 72, 153, 0.45)'  // Pink
-                    ],
-                    borderColor: [
-                        '#EF4444', '#F59E0B', '#10B981', '#06B6D4', '#8B5CF6', '#EC4899'
-                    ],
-                    borderWidth: 1.5,
-                    borderRadius: 6
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { display: false },
-                    tooltip: {
-                        backgroundColor: '#1E293B',
-                        titleColor: '#FFF',
-                        bodyColor: '#E2E8F0',
-                        borderColor: 'rgba(255, 255, 255, 0.1)',
-                        borderWidth: 1
-                    }
-                },
-                scales: {
-                    x: {
-                        grid: { display: false },
-                        ticks: { color: '#9CA3AF', font: chartFontConfig }
-                    },
-                    y: {
-                        grid: { color: 'rgba(255, 255, 255, 0.05)' },
-                        ticks: { color: '#9CA3AF', font: chartFontConfig, stepSize: 1 }
-                    }
-                }
-            }
-        });
-    } else if (triggerCanvas) {
-        const container = triggerCanvas.parentElement;
-        container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#6B7280;font-size:0.9rem;">No triggers logged yet.</div>';
+    // Trigger chart
+    if (triggerData && Object.keys(triggerData).length > 0 && triggerCanvas) {
+        _triggerChart = buildTriggerChart(triggerCanvas, triggerData);
+    } else if (_triggerContainer) {
+        _showNoDataMsg(_triggerContainer, NO_TRIGGER_MSG);
     }
 }
+
+/* ==========================================================================
+   2b. Real-Time Chart Polling
+   ========================================================================== */
+function initRealtimeCharts() {
+    // Anchor to the card element — always present on the dashboard page
+    const moodCard = document.getElementById('moodChartCard');
+    if (!moodCard) return;
+
+    const POLL_MS       = 30000;   // 30 seconds
+    const lastUpdatedEl = document.getElementById('chartLastUpdated');
+
+    function updateTimestamp() {
+        if (!lastUpdatedEl) return;
+        const t = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        lastUpdatedEl.textContent = `Updated ${t}`;
+    }
+
+    function applyChartUpdate(newChartData, newTriggerData) {
+        const hasMoodData    = newChartData   && newChartData.labels && newChartData.labels.length > 0;
+        const hasTriggerData = newTriggerData && Object.keys(newTriggerData).length > 0;
+
+        // ── Mood Line Chart ──────────────────────────────────────────────────
+        if (hasMoodData) {
+            if (_moodChart) {
+                // In-place update: mutate data arrays and call update()
+                _latestMoods = newChartData.moods;
+                _moodChart.data.labels           = newChartData.labels;
+                _moodChart.data.datasets[0].data = newChartData.scores;
+                _moodChart.update('active');
+            } else if (_moodContainer) {
+                // First data arrived after page loaded with no logs — build chart now
+                const canvas = _spawnCanvas(_moodContainer, 'moodTrendChart');
+                _moodChart = buildMoodChart(canvas, newChartData);
+            }
+        }
+
+        // ── Trigger Bar Chart ────────────────────────────────────────────────
+        if (hasTriggerData) {
+            if (_triggerChart) {
+                const labels = Object.keys(newTriggerData);
+                const data   = Object.values(newTriggerData);
+                _triggerChart.data.labels                       = labels;
+                _triggerChart.data.datasets[0].data             = data;
+                _triggerChart.data.datasets[0].backgroundColor  = BAR_BG_COLORS.slice(0, labels.length);
+                _triggerChart.data.datasets[0].borderColor      = BAR_BORDER_COLORS.slice(0, labels.length);
+                _triggerChart.update('active');
+            } else if (_triggerContainer) {
+                const canvas = _spawnCanvas(_triggerContainer, 'triggersDistributionChart');
+                _triggerChart = buildTriggerChart(canvas, newTriggerData);
+            }
+        }
+
+        updateTimestamp();
+    }
+
+    function fetchAndUpdate() {
+        fetch('/api/chart-data', { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(res => {
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                return res.json();
+            })
+            .then(payload => applyChartUpdate(payload.chart_data, payload.trigger_counts))
+            .catch(err  => console.warn('[RealTimeChart] Poll failed:', err));
+    }
+
+    // Set initial timestamp label
+    updateTimestamp();
+
+    // ① Immediate fetch — show fresh data right on page load (no 30-second wait)
+    fetchAndUpdate();
+
+    // ② Start recurring poll every 30 s
+    setInterval(fetchAndUpdate, POLL_MS);
+}
+
 
 /* ==========================================================================
    3. Box Breathing Guide

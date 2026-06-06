@@ -90,7 +90,7 @@ def add_security_headers(response: Response) -> Response:
     response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
     response.headers['Content-Security-Policy'] = (
         "default-src 'self'; "
-        "script-src 'self' https://cdn.jsdelivr.net; "
+        "script-src 'self'; "
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
         "font-src 'self' https://fonts.gstatic.com; "
         "connect-src 'self'; "
@@ -617,5 +617,42 @@ def community_delete(post_id: int) -> Response:
     return redirect(url_for('community'))
 
 
+# ==========================================================================
+# Real-Time Analytics API Endpoint
+# ==========================================================================
+@app.route('/api/chart-data')
+@login_required
+def api_chart_data() -> Response:
+    """Returns live mood trend and trigger count data as JSON for real-time graph polling."""
+    user_id = session['user_id']
+
+    # Last 7 mood logs (chronological order for line graph)
+    chart_logs = db.session.scalars(
+        db.select(MoodLog)
+        .filter_by(user_id=user_id)
+        .order_by(MoodLog.timestamp.desc())
+        .limit(7)
+    ).all()
+    chart_logs = list(reversed(chart_logs))
+
+    chart_data = {
+        'labels': [log.timestamp.strftime('%d %b, %H:%M') for log in chart_logs],
+        'scores': [log.mood_score for log in chart_logs],
+        'moods':  [log.mood_name  for log in chart_logs]
+    }
+
+    # Trigger counts via single GROUP BY query
+    db_counts = db.session.execute(
+        db.select(StressTrigger.trigger_name, db.func.count(StressTrigger.id))
+        .join(MoodLog)
+        .filter(MoodLog.user_id == user_id)
+        .group_by(StressTrigger.trigger_name)
+    ).all()
+    trigger_counts = {name: count for name, count in db_counts}
+
+    return jsonify({'chart_data': chart_data, 'trigger_counts': trigger_counts})
+
+
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
+
