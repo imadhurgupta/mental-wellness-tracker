@@ -16,7 +16,7 @@
         <div class="breathing-circle-wrapper">
             <div class="breathing-outer-ring"></div>
             <div class="breathing-circle" id="breathingCircle">
-                <span class="breathing-instruction" id="breathingInstruction">Ready to Start</span>
+                <span class="breathing-instruction" id="breathingInstruction" aria-live="polite">Ready to Start</span>
             </div>
         </div>
         
@@ -32,10 +32,10 @@
         <h3 style="margin-bottom: 0.5rem;">Pomodoro Focus Timer</h3>
         <p style="color: var(--text-secondary); font-size: 0.875rem; margin-bottom: 2rem;">Maintain deep focus without burning out. Study intensely for 25 minutes, then take a complete mental break.</p>
         
-        <div class="pomodoro-modes">
-            <button class="mode-tab active" data-mode="focus">Focus Block</button>
-            <button class="mode-tab" data-mode="break">Short Break</button>
-            <button class="mode-tab" data-mode="longBreak">Long Break</button>
+        <div class="pomodoro-modes" role="tablist">
+            <button class="mode-tab active" role="tab" aria-selected="true" data-mode="focus">Focus Block</button>
+            <button class="mode-tab" role="tab" aria-selected="false" data-mode="break">Short Break</button>
+            <button class="mode-tab" role="tab" aria-selected="false" data-mode="longBreak">Long Break</button>
         </div>
         
         <div class="timer-display" id="timerText">25:00</div>
@@ -50,7 +50,7 @@
 <!-- Ambient Sound Synthesis -->
 <div class="glass-card" style="margin-top: 1rem;">
     <h3 style="margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
-        <svg style="width: 22px; height: 22px; stroke: var(--color-secondary); fill: none; stroke-width: 2;" viewBox="0 0 24 24">
+        <svg aria-hidden="true" style="width: 22px; height: 22px; stroke: var(--color-secondary); fill: none; stroke-width: 2;" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
         </svg>
         Stress Relief Corner - Synth Soundscapes

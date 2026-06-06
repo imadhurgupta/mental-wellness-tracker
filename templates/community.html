@@ -72,7 +72,7 @@
                             <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
                             <input type="hidden" name="reaction_type" value="me_too">
                             <button type="submit" class="btn-reaction {% if 'me_too' in item.user_reactions %}active{% endif %}" data-type="me_too">
-                                👥 Me Too (<span class="reaction-count">{{ item.reactions.me_too }}</span>)
+                                <span aria-hidden="true">👥</span> Me Too (<span class="reaction-count">{{ item.reactions.me_too }}</span>)
                             </button>
                         </form>
                         
@@ -81,7 +81,7 @@
                             <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
                             <input type="hidden" name="reaction_type" value="support">
                             <button type="submit" class="btn-reaction {% if 'support' in item.user_reactions %}active{% endif %}" data-type="support">
-                                🌟 Support (<span class="reaction-count">{{ item.reactions.support }}</span>)
+                                <span aria-hidden="true">🌟</span> Support (<span class="reaction-count">{{ item.reactions.support }}</span>)
                             </button>
                         </form>
                         
@@ -90,7 +90,7 @@
                             <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
                             <input type="hidden" name="reaction_type" value="hug">
                             <button type="submit" class="btn-reaction {% if 'hug' in item.user_reactions %}active{% endif %}" data-type="hug">
-                                🤗 Sending Calm (<span class="reaction-count">{{ item.reactions.hug }}</span>)
+                                <span aria-hidden="true">🤗</span> Sending Calm (<span class="reaction-count">{{ item.reactions.hug }}</span>)
                             </button>
                         </form>
                     </div>
@@ -116,7 +116,7 @@
                         <!-- Reply submit form -->
                         <form action="{{ url_for('community_reply', post_id=item.post.id) }}" method="POST" class="reply-form">
                             <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
-                            <input type="text" name="content" class="reply-input" placeholder="Type a brief, supportive message..." required autocomplete="off">
+                            <input type="text" name="content" class="reply-input" placeholder="Type a brief, supportive message..." aria-label="Type a supportive reply to this post" required autocomplete="off">
                             <button type="submit" class="btn-reply-submit">Send</button>
                         </form>
                     </div>
@@ -125,8 +125,8 @@
                     {% if item.post.user_id == current_student.id %}
                         <form action="{{ url_for('community_delete', post_id=item.post.id) }}" method="POST" class="delete-log-form" data-confirm="Withdraw this stress loop from the community board?">
                             <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
-                            <button type="submit" class="btn-delete-log" title="Withdraw Post">
-                                <svg viewBox="0 0 24 24">
+                            <button type="submit" class="btn-delete-log" title="Withdraw Post" aria-label="Withdraw community post">
+                                <svg aria-hidden="true" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                 </svg>
                             </button>
@@ -157,8 +157,8 @@
                 <!-- Audio Card 1 -->
                 <div class="glass-card audio-card" data-audio-id="sigh-grounder" data-duration="120">
                     <div class="audio-header">
-                        <button class="btn-audio-play" title="Play meditation">
-                            <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                        <button class="btn-audio-play" title="Play meditation" aria-label="Play Physiological Sigh Grounder meditation">
+                            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
                         </button>
                         
                         <div class="audio-title-block">
@@ -167,7 +167,7 @@
                         </div>
                         
                         <!-- Equalizer wave visualizer -->
-                        <div class="audio-wave">
+                        <div class="audio-wave" aria-hidden="true">
                             <div class="wave-bar"></div>
                             <div class="wave-bar"></div>
                             <div class="wave-bar"></div>
@@ -185,8 +185,8 @@
                 <!-- Audio Card 2 -->
                 <div class="glass-card audio-card" data-audio-id="focus-alpha" data-duration="180">
                     <div class="audio-header">
-                        <button class="btn-audio-play" title="Play soundscape">
-                            <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                        <button class="btn-audio-play" title="Play soundscape" aria-label="Play Focus Alpha Entrainment soundscape">
+                            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
                         </button>
                         
                         <div class="audio-title-block">
@@ -195,7 +195,7 @@
                         </div>
                         
                         <!-- Equalizer wave visualizer -->
-                        <div class="audio-wave">
+                        <div class="audio-wave" aria-hidden="true">
                             <div class="wave-bar"></div>
                             <div class="wave-bar"></div>
                             <div class="wave-bar"></div>
