@@ -1,7 +1,7 @@
 import os
 import unittest
 from app import app, db
-from models import User, MoodLog, StressTrigger
+from models import User, MoodLog, StressTrigger, CommunityPost, PostReaction, PeerMessage
 
 class WellnessTrackerTestCase(unittest.TestCase):
     def setUp(self):
@@ -73,6 +73,48 @@ class WellnessTrackerTestCase(unittest.TestCase):
         self.assertIn(b'Anxiety Calming Protocol', response.data)
         self.assertIn(b'Struggling with history syllabus backlog.', response.data)
         self.assertIn(b'Syllabus Backlog', response.data)
+
+    def test_community_hub(self):
+        # 1. Register and login
+        self.register('community_stud', 'pass123', 'GATE')
+        
+        # 2. Get community board
+        response = self.app.get('/community')
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b'Community Support Circle', response.data)
+        self.assertIn(b'guided audio', response.data)
+        
+        # 3. Post a stress vent loop
+        response = self.app.post('/community/post', data=dict(
+            content='My math backlog is huge!',
+            stress_level='4'
+        ), follow_redirects=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b'My math backlog is huge!', response.data)
+        self.assertIn(b'Stress Level: 4/5', response.data)
+        
+        # 4. Toggle a peer reaction
+        with app.app_context():
+            post = CommunityPost.query.first()
+            post_id = post.id
+            
+        response = self.app.post(f'/community/react/{post_id}', data=dict(
+            reaction_type='me_too'
+        ), follow_redirects=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b'Me Too (<span class="reaction-count">1</span>)', response.data)
+        
+        # 5. Reply to the post
+        response = self.app.post(f'/community/reply/{post_id}', data=dict(
+            content='You got this, focus on formulas!'
+        ), follow_redirects=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b'You got this, focus on formulas!', response.data)
+        
+        # 6. Delete/withdraw post
+        response = self.app.post(f'/community/delete/{post_id}', follow_redirects=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn(b'My math backlog is huge!', response.data)
 
 if __name__ == '__main__':
     unittest.main()

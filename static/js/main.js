@@ -5,6 +5,7 @@ document.addEventListener('DOMContentLoaded', function () {
     initBreathingGuide();
     initPomodoroTimer();
     initAmbientSounds();
+    initCommunityHub();
 });
 
 /* ==========================================================================
@@ -541,5 +542,227 @@ function initAmbientSounds() {
                 console.error("Wind audio start failed:", e);
             }
         }
+    });
+}
+
+/* ==========================================================================
+   6. Community Hub - AJax reactions & Expert Guided Audio Synth
+   ========================================================================== */
+function initCommunityHub() {
+    // 1. AJax Peer Reactions
+    const reactionForms = document.querySelectorAll('.reaction-form');
+    reactionForms.forEach(form => {
+        form.addEventListener('submit', function (e) {
+            e.preventDefault();
+            const button = this.querySelector('button');
+            const postId = this.getAttribute('data-post-id');
+            const type = this.querySelector('input[name="reaction_type"]').value;
+            
+            fetch(`/community/react/${postId}`, {
+                method: 'POST',
+                body: new URLSearchParams(new FormData(this)),
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    const countSpan = button.querySelector('.reaction-count');
+                    countSpan.textContent = data.count;
+                    if (data.action === 'added') {
+                        button.classList.add('active');
+                    } else {
+                        button.classList.remove('active');
+                    }
+                }
+            })
+            .catch(err => console.error("Reaction toggle failed:", err));
+        });
+    });
+
+    // 2. Synthesize Curated Guided Audio
+    const audioCards = document.querySelectorAll('.audio-card');
+    let activeAudioSource = null;
+    let activeAudioCard = null;
+    let audioCtx = null;
+    let progressInterval = null;
+    let secondsElapsed = 0;
+    
+    function getAudioContext() {
+        if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioCtx.state === 'suspended') {
+            audioCtx.resume();
+        }
+        return audioCtx;
+    }
+
+    function stopActiveAudio() {
+        if (activeAudioSource) {
+            try {
+                activeAudioSource.stop();
+                if (activeAudioSource.binauralOsc1) activeAudioSource.binauralOsc1.stop();
+                if (activeAudioSource.binauralOsc2) activeAudioSource.binauralOsc2.stop();
+            } catch (e) {}
+            activeAudioSource = null;
+        }
+        if (progressInterval) {
+            clearInterval(progressInterval);
+            progressInterval = null;
+        }
+        if (activeAudioCard) {
+            activeAudioCard.classList.remove('playing');
+            const playBtn = activeAudioCard.querySelector('.btn-audio-play');
+            // Play icon
+            playBtn.innerHTML = '<svg viewBox="0 0 24 24" style="width:20px;height:20px;fill:currentColor;"><path d="M8 5v14l11-7z"/></svg>';
+            const progressFill = activeAudioCard.querySelector('.audio-progress-fill');
+            progressFill.style.width = '0%';
+            activeAudioCard = null;
+        }
+    }
+
+    // Synthesis engine for guided drones
+    function startSynthesis(cardId, durationSeconds) {
+        const ctx = getAudioContext();
+        
+        let sourceNode = {};
+        
+        if (cardId === 'sigh-grounder') {
+            // Physiological Sigh Grounder: Synthesize soft periodic low drone + gentle sweep
+            const masterGain = ctx.createGain();
+            masterGain.gain.value = 0.25;
+            masterGain.connect(ctx.destination);
+            
+            // Sub Drone (110Hz - A2)
+            const osc = ctx.createOscillator();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(110, ctx.currentTime);
+            
+            const oscGain = ctx.createGain();
+            oscGain.gain.setValueAtTime(0.08, ctx.currentTime);
+            osc.connect(oscGain);
+            oscGain.connect(masterGain);
+            osc.start();
+            
+            // Soft white noise ocean wave filter sweeps to simulate inhales/exhales
+            const bufferSize = ctx.sampleRate * 2;
+            const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) {
+                data[i] = Math.random() * 2 - 1;
+            }
+            const noise = ctx.createBufferSource();
+            noise.buffer = buffer;
+            noise.loop = true;
+            
+            const filter = ctx.createBiquadFilter();
+            filter.type = 'lowpass';
+            filter.frequency.setValueAtTime(300, ctx.currentTime);
+            
+            // LFO for breathing cycle
+            const lfo = ctx.createOscillator();
+            lfo.type = 'sine';
+            lfo.frequency.setValueAtTime(0.12, ctx.currentTime); // ~8s cycle
+            
+            const lfoGain = ctx.createGain();
+            lfoGain.gain.setValueAtTime(150, ctx.currentTime);
+            
+            lfo.connect(lfoGain);
+            lfoGain.connect(filter.frequency);
+            
+            const noiseGain = ctx.createGain();
+            noiseGain.gain.setValueAtTime(0.12, ctx.currentTime);
+            
+            noise.connect(filter);
+            filter.connect(noiseGain);
+            noiseGain.connect(masterGain);
+            
+            lfo.start();
+            noise.start();
+            
+            sourceNode.stop = function() {
+                osc.stop();
+                noise.stop();
+                lfo.stop();
+            };
+        } else {
+            // Focus Binaural Entrainment: 100Hz and 106Hz sine waves for 6Hz theta entrainment
+            const masterGain = ctx.createGain();
+            masterGain.gain.value = 0.2;
+            masterGain.connect(ctx.destination);
+            
+            const oscL = ctx.createOscillator();
+            oscL.frequency.setValueAtTime(100, ctx.currentTime);
+            const pannerL = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
+            if (pannerL) pannerL.pan.value = -1;
+            
+            const oscR = ctx.createOscillator();
+            oscR.frequency.setValueAtTime(106, ctx.currentTime);
+            const pannerR = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
+            if (pannerR) pannerR.pan.value = 1;
+            
+            const gainL = ctx.createGain();
+            gainL.gain.value = 0.08;
+            const gainR = ctx.createGain();
+            gainR.gain.value = 0.08;
+            
+            if (pannerL && pannerR) {
+                oscL.connect(gainL).connect(pannerL).connect(masterGain);
+                oscR.connect(gainR).connect(pannerR).connect(masterGain);
+            } else {
+                oscL.connect(gainL).connect(masterGain);
+                oscR.connect(gainR).connect(masterGain);
+            }
+            
+            oscL.start();
+            oscR.start();
+            
+            sourceNode.binauralOsc1 = oscL;
+            sourceNode.binauralOsc2 = oscR;
+            sourceNode.stop = function() {
+                oscL.stop();
+                oscR.stop();
+            };
+        }
+        
+        return sourceNode;
+    }
+
+    audioCards.forEach(card => {
+        const playBtn = card.querySelector('.btn-audio-play');
+        const progressFill = card.querySelector('.audio-progress-fill');
+        const cardId = card.getAttribute('data-audio-id');
+        const duration = parseInt(card.getAttribute('data-duration') || '120');
+        
+        playBtn.addEventListener('click', function () {
+            if (activeAudioCard === card) {
+                stopActiveAudio();
+            } else {
+                stopActiveAudio();
+                
+                activeAudioCard = card;
+                card.classList.add('playing');
+                playBtn.innerHTML = '<svg viewBox="0 0 24 24" style="width:20px;height:20px;fill:currentColor;"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>';
+                
+                try {
+                    activeAudioSource = startSynthesis(cardId, duration);
+                } catch (e) {
+                    console.error("Meditation synthesis failed:", e);
+                }
+                
+                secondsElapsed = 0;
+                progressInterval = setInterval(function () {
+                    secondsElapsed++;
+                    const percent = (secondsElapsed / duration) * 100;
+                    progressFill.style.width = `${percent}%`;
+                    
+                    if (secondsElapsed >= duration) {
+                        stopActiveAudio();
+                    }
+                }, 1000);
+            }
+        });
     });
 }

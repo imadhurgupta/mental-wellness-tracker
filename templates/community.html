@@ -1,0 +1,220 @@
+{% extends 'base.html' %}
+{% block title %}Community Support Circle - MindSpace{% endblock %}
+
+{% block content %}
+<header class="community-header">
+    <h2 style="font-size: 2rem;">Community Support Circle</h2>
+    <p style="color: var(--text-secondary);">An anonymous space to normalize exam struggles, share your load, and ground yourself with guided audio.</p>
+</header>
+
+<div class="community-layout">
+    
+    <!-- Left Column: Venting loops feed -->
+    <div style="display: flex; flex-direction: column; gap: 2rem;">
+        
+        <!-- Post Vent Form -->
+        <div class="glass-card">
+            <h3 style="margin-bottom: 0.5rem; font-size: 1.25rem;">Release Your Stress</h3>
+            <p style="color: var(--text-secondary); font-size: 0.875rem; margin-bottom: 1.5rem;">Anonymously share a stress trigger or challenge. Your username is never shown to others.</p>
+            
+            <form action="{{ url_for('community_post') }}" method="POST">
+                <div class="form-group">
+                    <label for="vent-content" class="form-label">What is on your mind?</label>
+                    <textarea id="vent-content" name="content" class="form-textarea" placeholder="e.g. 'Backlog of 5 mock papers feels impossible to clear before Sunday. Anxious about chemistry scores...'" required></textarea>
+                </div>
+                
+                <div class="form-group" style="max-width: 250px;">
+                    <label for="stress_level" class="form-label">Current Stress Level</label>
+                    <select id="stress_level" name="stress_level" class="form-input" required>
+                        <option value="1">1 - Minimal Stress</option>
+                        <option value="2">2 - Manageable</option>
+                        <option value="3" selected>3 - Noticeable Pressure</option>
+                        <option value="4">4 - High Anxiety</option>
+                        <option value="5">5 - Overwhelming Burnout</option>
+                    </select>
+                </div>
+                
+                <button type="submit" class="btn-submit">Release to Support Circle</button>
+            </form>
+        </div>
+        
+        <!-- Vent Feed Timeline -->
+        <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+            <h3 style="font-size: 1.25rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.75rem;">Active Vents</h3>
+            
+            {% for item in posts %}
+                <div class="glass-card vent-card {% if item.post.user_id == current_student.id %}author-post{% endif %}">
+                    <div class="vent-meta">
+                        <span class="vent-author">
+                            {{ item.post.alias }}
+                            {% if item.post.user_id == current_student.id %}
+                                <span style="font-size:0.75rem; color:var(--color-primary); margin-left:0.5rem; font-weight:normal;">(Your Post)</span>
+                            {% endif %}
+                        </span>
+                        
+                        <div style="display: flex; align-items: center; gap: 0.75rem;">
+                            <span class="stress-badge stress-level-{{ item.post.stress_level }}">
+                                Stress Level: {{ item.post.stress_level }}/5
+                            </span>
+                            <span class="vent-time">
+                                {{ item.post.created_at.strftime('%I:%M %p') }}
+                            </span>
+                        </div>
+                    </div>
+                    
+                    <p class="vent-content">{{ item.post.content }}</p>
+                    
+                    <!-- Reactions Bar -->
+                    <div class="reaction-bar">
+                        <!-- Me too -->
+                        <form action="{{ url_for('community_react', post_id=item.post.id) }}" method="POST" class="reaction-form" data-post-id="{{ item.post.id }}">
+                            <input type="hidden" name="reaction_type" value="me_too">
+                            <button type="submit" class="btn-reaction {% if 'me_too' in item.user_reactions %}active{% endif %}" data-type="me_too">
+                                👥 Me Too (<span class="reaction-count">{{ item.reactions.me_too }}</span>)
+                            </button>
+                        </form>
+                        
+                        <!-- You can do it / support -->
+                        <form action="{{ url_for('community_react', post_id=item.post.id) }}" method="POST" class="reaction-form" data-post-id="{{ item.post.id }}">
+                            <input type="hidden" name="reaction_type" value="support">
+                            <button type="submit" class="btn-reaction {% if 'support' in item.user_reactions %}active{% endif %}" data-type="support">
+                                🌟 Support (<span class="reaction-count">{{ item.reactions.support }}</span>)
+                            </button>
+                        </form>
+                        
+                        <!-- Hug / calm -->
+                        <form action="{{ url_for('community_react', post_id=item.post.id) }}" method="POST" class="reaction-form" data-post-id="{{ item.post.id }}">
+                            <input type="hidden" name="reaction_type" value="hug">
+                            <button type="submit" class="btn-reaction {% if 'hug' in item.user_reactions %}active{% endif %}" data-type="hug">
+                                🤗 Sending Calm (<span class="reaction-count">{{ item.reactions.hug }}</span>)
+                            </button>
+                        </form>
+                    </div>
+                    
+                    <!-- Peer Validation Comments Drawer -->
+                    <div class="replies-section">
+                        <div class="replies-list">
+                            {% for reply in item.replies %}
+                                <div class="reply-item">
+                                    <div class="reply-meta">
+                                        <span class="reply-author">{{ reply.alias }}</span>
+                                        <span>{{ reply.created_at.strftime('%I:%M %p') }}</span>
+                                    </div>
+                                    <p class="reply-content">{{ reply.content }}</p>
+                                </div>
+                            {% else %}
+                                <div style="text-align: center; font-size: 0.8rem; color: var(--text-muted); padding: 0.5rem 0;">
+                                    Be the first to share a validation or supportive tip.
+                                </div>
+                            {% endfor %}
+                        </div>
+                        
+                        <!-- Reply submit form -->
+                        <form action="{{ url_for('community_reply', post_id=item.post.id) }}" method="POST" class="reply-form">
+                            <input type="text" name="content" class="reply-input" placeholder="Type a brief, supportive message..." required autocomplete="off">
+                            <button type="submit" class="btn-reply-submit">Send</button>
+                        </form>
+                    </div>
+                    
+                    <!-- Delete control (only visible to post creator) -->
+                    {% if item.post.user_id == current_student.id %}
+                        <form action="{{ url_for('community_delete', post_id=item.post.id) }}" method="POST" class="delete-log-form" onsubmit="return confirm('Withdraw this stress loop from the community board?');">
+                            <button type="submit" class="btn-delete-log" title="Withdraw Post">
+                                <svg viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                            </button>
+                        </form>
+                    {% endif %}
+                </div>
+            {% else %}
+                <div class="glass-card" style="text-align: center; padding: 4rem 0; color: var(--text-muted);">
+                    <svg style="width:48px;height:48px;stroke:currentColor;fill:none;stroke-width:1.2;margin-bottom:1rem;" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                    </svg>
+                    <p>The community loop board is quiet. Share your stress levels above to start the support circle.</p>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+    
+    <!-- Right Column: Expert audio content -->
+    <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+        
+        <!-- Guided Audio Card Room -->
+        <div class="glass-card">
+            <h3 style="margin-bottom: 0.5rem; font-size: 1.25rem;">Expert guided audio</h3>
+            <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 1.5rem;">Brief, focused meditations to handle test panic and reset your brain between study cycles.</p>
+            
+            <div style="display:flex; flex-direction:column; gap: 1rem;">
+                
+                <!-- Audio Card 1 -->
+                <div class="glass-card audio-card" data-audio-id="sigh-grounder" data-duration="120">
+                    <div class="audio-header">
+                        <button class="btn-audio-play" title="Play meditation">
+                            <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                        </button>
+                        
+                        <div class="audio-title-block">
+                            <h4>Physiological Sigh Grounder</h4>
+                            <span>Coping with acute mock test panic • 2 mins</span>
+                        </div>
+                        
+                        <!-- Equalizer wave visualizer -->
+                        <div class="audio-wave">
+                            <div class="wave-bar"></div>
+                            <div class="wave-bar"></div>
+                            <div class="wave-bar"></div>
+                            <div class="wave-bar"></div>
+                            <div class="wave-bar"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- Progress meter -->
+                    <div class="audio-progress-bar">
+                        <div class="audio-progress-fill"></div>
+                    </div>
+                </div>
+                
+                <!-- Audio Card 2 -->
+                <div class="glass-card audio-card" data-audio-id="focus-alpha" data-duration="180">
+                    <div class="audio-header">
+                        <button class="btn-audio-play" title="Play soundscape">
+                            <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                        </button>
+                        
+                        <div class="audio-title-block">
+                            <h4>Focus Alpha Entrainment</h4>
+                            <span>Binaural beats for active revision • 3 mins</span>
+                        </div>
+                        
+                        <!-- Equalizer wave visualizer -->
+                        <div class="audio-wave">
+                            <div class="wave-bar"></div>
+                            <div class="wave-bar"></div>
+                            <div class="wave-bar"></div>
+                            <div class="wave-bar"></div>
+                            <div class="wave-bar"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- Progress meter -->
+                    <div class="audio-progress-bar">
+                        <div class="audio-progress-fill"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Info card: Why Anonymous Venting Works -->
+        <div class="glass-card" style="background: rgba(16, 185, 129, 0.03); border-color: rgba(16, 185, 129, 0.15);">
+            <h4 style="margin-bottom: 0.5rem; color: var(--color-happy); font-size: 0.95rem;">Why Support Circles Help</h4>
+            <ul style="margin-left: 1.2rem; font-size: 0.85rem; color: var(--text-secondary); display: flex; flex-direction: column; gap: 0.5rem; line-height: 1.5;">
+                <li><strong>Reduces Isolation:</strong> Realizing that other students preparing for NEET, JEE, or UPSC face similar mock test anxieties lowers cognitive pressure.</li>
+                <li><strong>Safe Offloading:</strong> Anonymous writing allows honest expression without the fear of judgment from peers or family expectations.</li>
+                <li><strong>Collective Validation:</strong> Validating others' feelings ("Me Too") creates positive mutual validation loops.</li>
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}
