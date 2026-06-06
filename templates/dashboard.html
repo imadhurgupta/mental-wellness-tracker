@@ -54,6 +54,7 @@
         <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 1.5rem;">Logging your current mood helps identify triggers early.</p>
         
         <form action="{{ url_for('log_mood') }}" method="POST">
+            <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
             <!-- Mood Buttons Grid -->
             <div class="mood-selector">
                 <button type="button" class="mood-btn" data-mood="Happy">
@@ -239,7 +240,8 @@
                 </div>
                 
                 <!-- Delete Log Action -->
-                <form action="{{ url_for('delete_log', log_id=log.id) }}" method="POST" class="delete-log-form" onsubmit="return confirm('Remove this reflection entry?');">
+                <form action="{{ url_for('delete_log', log_id=log.id) }}" method="POST" class="delete-log-form" data-confirm="Remove this reflection entry?">
+                    <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
                     <button type="submit" class="btn-delete-log" title="Delete entry">
                         <svg viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />

@@ -1,4 +1,3 @@
-// UI State and Interactive Controls
 document.addEventListener('DOMContentLoaded', function () {
     initMoodSelector();
     initAnalyticsCharts();
@@ -6,6 +5,8 @@ document.addEventListener('DOMContentLoaded', function () {
     initPomodoroTimer();
     initAmbientSounds();
     initCommunityHub();
+    initAlertDismissal();
+    initFormConfirmations();
 });
 
 /* ==========================================================================
@@ -766,3 +767,28 @@ function initCommunityHub() {
         });
     });
 }
+
+/* ==========================================================================
+   7. CSP-Compliant Event Listeners (Alerts and Confirmations)
+   ========================================================================== */
+function initAlertDismissal() {
+    document.addEventListener('click', function (e) {
+        const closeBtn = e.target.closest('.alert-close');
+        if (closeBtn) {
+            closeBtn.parentElement.style.display = 'none';
+        }
+    });
+}
+
+function initFormConfirmations() {
+    document.addEventListener('submit', function (e) {
+        const form = e.target.closest('form[data-confirm]');
+        if (form) {
+            const msg = form.getAttribute('data-confirm');
+            if (!confirm(msg)) {
+                e.preventDefault();
+            }
+        }
+    });
+}
+

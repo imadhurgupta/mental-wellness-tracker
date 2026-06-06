@@ -60,7 +60,7 @@ class WellnessTrackerTestCase(unittest.TestCase):
 
     def test_mood_logging(self):
         # Register and login first
-        self.register('student_log', 'pass123', 'UPSC')
+        self.register('student_log', 'password123', 'UPSC')
         
         # Log a mood
         response = self.app.post('/log_mood', data=dict(
@@ -76,7 +76,7 @@ class WellnessTrackerTestCase(unittest.TestCase):
 
     def test_community_hub(self):
         # 1. Register and login
-        self.register('community_stud', 'pass123', 'GATE')
+        self.register('community_stud', 'password123', 'GATE')
         
         # 2. Get community board
         response = self.app.get('/community')
@@ -95,7 +95,7 @@ class WellnessTrackerTestCase(unittest.TestCase):
         
         # 4. Toggle a peer reaction
         with app.app_context():
-            post = CommunityPost.query.first()
+            post = db.session.scalar(db.select(CommunityPost))
             post_id = post.id
             
         response = self.app.post(f'/community/react/{post_id}', data=dict(
@@ -115,6 +115,70 @@ class WellnessTrackerTestCase(unittest.TestCase):
         response = self.app.post(f'/community/delete/{post_id}', follow_redirects=True)
         self.assertEqual(response.status_code, 200)
         self.assertNotIn(b'My math backlog is huge!', response.data)
+
+    def test_password_strength_validation(self):
+        # Enforces min length of 8 characters
+        response = self.register('student_short', 'pwd', 'JEE')
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b'Password must be at least 8 characters long.', response.data)
+        
+        # Valid password (8 characters)
+        response = self.register('student_valid', 'password', 'JEE')
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn(b'Password must be at least 8 characters long.', response.data)
+
+    def test_nonexistent_post_reactions_and_replies(self):
+        self.register('test_user_exist', 'password123', 'NEET')
+        
+        # Reaction to nonexistent post ID 9999
+        response = self.app.post('/community/react/9999', data=dict(
+            reaction_type='me_too'
+        ), follow_redirects=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b'Post not found.', response.data)
+        
+        # Reply to nonexistent post ID 9999
+        response = self.app.post('/community/reply/9999', data=dict(
+            content='This is a comment.'
+        ), follow_redirects=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b'Post not found.', response.data)
+
+    def test_security_headers(self):
+        response = self.app.get('/login')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers.get('X-Frame-Options'), 'DENY')
+        self.assertEqual(response.headers.get('X-Content-Type-Options'), 'nosniff')
+        self.assertEqual(response.headers.get('Referrer-Policy'), 'strict-origin-when-cross-origin')
+        self.assertIn("default-src 'self'", response.headers.get('Content-Security-Policy'))
+
+    def test_csrf_protection(self):
+        # Register/login first
+        self.register('csrf_test_user', 'password123', 'NEET')
+        
+        # Disable TESTING flag on app temporarily to trigger CSRF validation
+        app.config['TESTING'] = False
+        try:
+            # POST request without CSRF token
+            response = self.app.post('/log_mood', data=dict(
+                mood_name='Calm'
+            ))
+            # Should fail with 400 Bad Request
+            self.assertEqual(response.status_code, 400)
+            self.assertIn(b'CSRF token validation failed.', response.data)
+            
+            # Send with correct token
+            with self.app.session_transaction() as sess:
+                token = sess.get('csrf_token')
+            
+            response = self.app.post('/log_mood', data=dict(
+                mood_name='Calm',
+                csrf_token=token
+            ), follow_redirects=True)
+            self.assertEqual(response.status_code, 200)
+        finally:
+            # Restore testing mode
+            app.config['TESTING'] = True
 
 if __name__ == '__main__':
     unittest.main()

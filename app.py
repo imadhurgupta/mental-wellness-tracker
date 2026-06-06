@@ -6,11 +6,28 @@ from models import db, User, MoodLog, StressTrigger, CommunityPost, PostReaction
 from datetime import datetime, timedelta, timezone
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'mental_wellness_secret_key_123_abc_xyz'
+# Load secret key from environment variable in production, fall back to safe key locally
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY') or 'mental_wellness_local_development_fallback_key_123_xyz'
 
-# Ensure the database file path is absolute and in the workspace directory
-db_path = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'database.db')
-app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
+# Session Cookie Policies for XSS/CSRF mitigation
+is_prod = os.environ.get('VERCEL') == '1'
+app.config.update(
+    SESSION_COOKIE_SECURE=is_prod,
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE='Lax'
+)
+
+# Configure Database: Use remote Postgres on Vercel/Prod if available, else local SQLite
+database_url = os.environ.get('DATABASE_URL') or os.environ.get('POSTGRES_URL')
+if database_url:
+    # SQLAlchemy 1.4+ requires postgresql:// instead of postgres://
+    if database_url.startswith("postgres://"):
+        database_url = database_url.replace("postgres://", "postgresql://", 1)
+    app.config['SQLALCHEMY_DATABASE_URI'] = database_url
+else:
+    db_path = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'database.db')
+    app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
+
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db.init_app(app)
@@ -18,6 +35,40 @@ db.init_app(app)
 # Create database tables if they don't exist
 with app.app_context():
     db.create_all()
+
+# CSRF validation and token generation hooks
+@app.before_request
+def csrf_protect():
+    # 1. Generate CSRF token if missing
+    if 'csrf_token' not in session:
+        import secrets
+        session['csrf_token'] = secrets.token_hex(32)
+        
+    # 2. Verify token on all POST requests
+    if request.method == "POST":
+        if app.config.get('TESTING'):
+            return
+        token = session.get('csrf_token')
+        form_token = request.form.get('csrf_token') or request.headers.get('X-CSRF-Token')
+        if not token or token != form_token:
+            from flask import abort
+            abort(400, "CSRF token validation failed.")
+
+# Inject security response headers globally
+@app.after_request
+def add_security_headers(response):
+    response.headers['X-Frame-Options'] = 'DENY'
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    response.headers['Content-Security-Policy'] = (
+        "default-src 'self'; "
+        "script-src 'self' https://cdn.jsdelivr.net; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+        "font-src 'self' https://fonts.gstatic.com; "
+        "connect-src 'self'; "
+        "img-src 'self' data:;"
+    )
+    return response
 
 # Login required decorator
 def login_required(f):
@@ -96,7 +147,7 @@ def dashboard():
     user = db.session.get(User, session['user_id'])
     
     # Get all logs for current user, descending by date
-    logs = MoodLog.query.filter_by(user_id=user.id).order_by(MoodLog.timestamp.desc()).all()
+    logs = db.session.scalars(db.select(MoodLog).filter_by(user_id=user.id).order_by(MoodLog.timestamp.desc())).all()
     
     # Personalized advice based on latest log
     latest_log = logs[0] if logs else None
@@ -107,7 +158,7 @@ def dashboard():
     
     # Prepare Analytics Data
     # 1. Last 7 logs for Mood Chart (reverse to chronological order for line graph)
-    chart_logs = MoodLog.query.filter_by(user_id=user.id).order_by(MoodLog.timestamp.desc()).limit(7).all()
+    chart_logs = db.session.scalars(db.select(MoodLog).filter_by(user_id=user.id).order_by(MoodLog.timestamp.desc()).limit(7)).all()
     chart_logs.reverse()
     
     chart_data = {
@@ -117,7 +168,7 @@ def dashboard():
     }
     
     # 2. Trigger Counts for pie/bar chart
-    all_user_logs = MoodLog.query.filter_by(user_id=user.id).all()
+    all_user_logs = db.session.scalars(db.select(MoodLog).filter_by(user_id=user.id)).all()
     trigger_counts = {}
     for log in all_user_logs:
         for t in log.triggers:
@@ -230,7 +281,11 @@ def register():
             flash('Please fill in all details.', 'danger')
             return render_template('register.html')
             
-        existing_user = User.query.filter_by(username=username).first()
+        if len(password) < 8:
+            flash('Password must be at least 8 characters long.', 'danger')
+            return render_template('register.html')
+            
+        existing_user = db.session.scalar(db.select(User).filter_by(username=username))
         if existing_user:
             flash('Username is already taken.', 'danger')
             return render_template('register.html')
@@ -260,7 +315,7 @@ def login():
         username = request.form.get('username', '').strip()
         password = request.form.get('password', '')
         
-        user = User.query.filter_by(username=username).first()
+        user = db.session.scalar(db.select(User).filter_by(username=username))
         if user and check_password_hash(user.password_hash, password):
             session['user_id'] = user.id
             flash(f'Logged in successfully. Welcome back!', 'success')
@@ -285,7 +340,7 @@ def community():
     user = db.session.get(User, session['user_id'])
     
     # Query posts, newest first
-    posts = CommunityPost.query.order_by(CommunityPost.created_at.desc()).all()
+    posts = db.session.scalars(db.select(CommunityPost).order_by(CommunityPost.created_at.desc())).all()
     
     # Process reactions and user states for templates
     processed_posts = []
@@ -360,14 +415,21 @@ def community_react(post_id):
         flash('Invalid reaction type.', 'danger')
         return redirect(url_for('community'))
         
+    post = db.session.get(CommunityPost, post_id)
+    if not post:
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': False, 'error': 'Post not found'}), 404
+        flash('Post not found.', 'danger')
+        return redirect(url_for('community'))
+        
     user_id = session['user_id']
     
     # Check if user already reacted with this type
-    existing = PostReaction.query.filter_by(
+    existing = db.session.scalar(db.select(PostReaction).filter_by(
         post_id=post_id, 
         user_id=user_id, 
         reaction_type=reaction_type
-    ).first()
+    ))
     
     if existing:
         db.session.delete(existing)
@@ -385,7 +447,7 @@ def community_react(post_id):
         db.session.commit()
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             # Count updated totals
-            count = PostReaction.query.filter_by(post_id=post_id, reaction_type=reaction_type).count()
+            count = db.session.scalar(db.select(db.func.count(PostReaction.id)).filter_by(post_id=post_id, reaction_type=reaction_type))
             return jsonify({'success': True, 'action': action, 'count': count})
     except Exception as e:
         db.session.rollback()
@@ -397,6 +459,11 @@ def community_react(post_id):
 @app.route('/community/reply/<int:post_id>', methods=['POST'])
 @login_required
 def community_reply(post_id):
+    post = db.session.get(CommunityPost, post_id)
+    if not post:
+        flash('Post not found.', 'danger')
+        return redirect(url_for('community'))
+        
     content = request.form.get('content', '').strip()
     if not content:
         flash('Reply message cannot be empty.', 'danger')
