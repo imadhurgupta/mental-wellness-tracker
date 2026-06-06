@@ -66,7 +66,7 @@ def is_valid_username(username: str) -> bool:
 
 # CSRF validation and token generation hooks
 @app.before_request
-def csrf_protect():
+def csrf_protect() -> None:
     # 1. Generate CSRF token if missing
     if 'csrf_token' not in session:
         import secrets
@@ -78,13 +78,13 @@ def csrf_protect():
             return
         token = session.get('csrf_token')
         form_token = request.form.get('csrf_token') or request.headers.get('X-CSRF-Token')
-        if not token or token != form_token:
+        if not token or not form_token or not hmac.compare_digest(token, form_token):
             from flask import abort
             abort(400, "CSRF token validation failed.")
 
 # Inject security response headers globally
 @app.after_request
-def add_security_headers(response):
+def add_security_headers(response: Response) -> Response:
     response.headers['X-Frame-Options'] = 'DENY'
     response.headers['X-Content-Type-Options'] = 'nosniff'
     response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
@@ -99,9 +99,9 @@ def add_security_headers(response):
     return response
 
 # Login required decorator
-def login_required(f):
+def login_required(f: Callable[..., Any]) -> Callable[..., Any]:
     @wraps(f)
-    def decorated_function(*args, **kwargs):
+    def decorated_function(*args: Any, **kwargs: Any) -> Any:
         if 'user_id' not in session:
             flash('Please log in to access this page.', 'warning')
             return redirect(url_for('login'))
@@ -110,7 +110,7 @@ def login_required(f):
 
 # Context processor to make target exam and username globally available in templates
 @app.context_processor
-def inject_user_details():
+def inject_user_details() -> Dict[str, Optional[User]]:
     if 'user_id' in session:
         user = db.session.get(User, session['user_id'])
         if user:
@@ -118,7 +118,7 @@ def inject_user_details():
     return {'current_student': None}
 
 # Wellness Feedback Engine
-def generate_personalized_advice(mood_name, triggers, target_exam):
+def generate_personalized_advice(mood_name: str, triggers: List[str], target_exam: str) -> Dict[str, Any]:
     advice = {
         "title": "Your Coping Action Plan",
         "intro": f"Preparing for {target_exam} is an intense journey, and feeling overwhelmed is a natural reaction. Here is customized support based on your log:",
@@ -167,15 +167,22 @@ def generate_personalized_advice(mood_name, triggers, target_exam):
             advice['points'].append(trigger_tips[trigger])
             
     return advice
-
 # Main Dashboard Route
 @app.route('/')
 @login_required
-def dashboard():
+def dashboard() -> Union[str, Response]:
     user = db.session.get(User, session['user_id'])
+    if not user:
+        session.clear()
+        return redirect(url_for('login'))
     
-    # Get all logs for current user, descending by date
-    logs = db.session.scalars(db.select(MoodLog).filter_by(user_id=user.id).order_by(MoodLog.timestamp.desc())).all()
+    # Eager load triggers to resolve the N+1 query issue for the history timeline feed
+    logs = db.session.scalars(
+        db.select(MoodLog)
+        .options(selectinload(MoodLog.triggers))
+        .filter_by(user_id=user.id)
+        .order_by(MoodLog.timestamp.desc())
+    ).all()
     
     # Personalized advice based on latest log
     latest_log = logs[0] if logs else None
@@ -186,7 +193,12 @@ def dashboard():
     
     # Prepare Analytics Data
     # 1. Last 7 logs for Mood Chart (reverse to chronological order for line graph)
-    chart_logs = db.session.scalars(db.select(MoodLog).filter_by(user_id=user.id).order_by(MoodLog.timestamp.desc()).limit(7)).all()
+    chart_logs = db.session.scalars(
+        db.select(MoodLog)
+        .filter_by(user_id=user.id)
+        .order_by(MoodLog.timestamp.desc())
+        .limit(7)
+    ).all()
     chart_logs.reverse()
     
     chart_data = {
@@ -195,12 +207,16 @@ def dashboard():
         'moods': [log.mood_name for log in chart_logs]
     }
     
-    # 2. Trigger Counts for pie/bar chart
-    all_user_logs = db.session.scalars(db.select(MoodLog).filter_by(user_id=user.id)).all()
+    # 2. Optimized trigger counts calculation to a single GROUP BY database query (replaces N+1 lazy queries)
     trigger_counts = {}
-    for log in all_user_logs:
-        for t in log.triggers:
-            trigger_counts[t.trigger_name] = trigger_counts.get(t.trigger_name, 0) + 1
+    db_counts = db.session.execute(
+        db.select(StressTrigger.trigger_name, db.func.count(StressTrigger.id))
+        .join(MoodLog)
+        .filter(MoodLog.user_id == user.id)
+        .group_by(StressTrigger.trigger_name)
+    ).all()
+    for t_name, count in db_counts:
+        trigger_counts[t_name] = count
             
     return render_template(
         'dashboard.html', 
@@ -215,14 +231,26 @@ def dashboard():
 # Log Mood POST Action
 @app.route('/log_mood', methods=['POST'])
 @login_required
-def log_mood():
+def log_mood() -> Response:
     mood_name = request.form.get('mood_name')
     reflection = request.form.get('reflection', '').strip()
     selected_triggers = request.form.getlist('triggers')
     
-    if not mood_name:
-        flash('Please select a mood before saving.', 'danger')
+    # 1. Parameter Validation: Mood Name
+    if not mood_name or mood_name not in VALID_MOODS:
+        flash('Invalid mood selection.', 'danger')
         return redirect(url_for('dashboard'))
+        
+    # 2. Parameter Validation: Reflection Length Limit
+    if len(reflection) > 2000:
+        flash('Diary reflection must be at most 2000 characters.', 'danger')
+        return redirect(url_for('dashboard'))
+        
+    # 3. Parameter Validation: Triggers List Checks
+    for t_name in selected_triggers:
+        if t_name not in VALID_TRIGGERS:
+            flash('Invalid stress trigger selection detected.', 'danger')
+            return redirect(url_for('dashboard'))
         
     # Map mood names to standard scores
     mood_scores = {
@@ -242,7 +270,7 @@ def log_mood():
         user_id=session['user_id'],
         mood_name=mood_name,
         mood_score=mood_score,
-        reflection=reflection,
+        reflection=reflection if reflection else None,
         timestamp=datetime.now(timezone.utc)
     )
     
@@ -259,14 +287,13 @@ def log_mood():
         flash('Mood logged successfully!', 'success')
     except Exception as e:
         db.session.rollback()
+        app.logger.error(f"Error logging mood: {e}")
         flash('Error saving log. Please try again.', 'danger')
         
-    return redirect(url_for('dashboard'))
-
-# Delete Log Action
+    return redirect(url_for('dashboard'))# Delete Log Action
 @app.route('/delete_log/<int:log_id>', methods=['POST'])
 @login_required
-def delete_log(log_id):
+def delete_log(log_id: int) -> Response:
     log = db.get_or_404(MoodLog, log_id)
     if log.user_id != session['user_id']:
         flash('Access denied.', 'danger')
@@ -278,6 +305,7 @@ def delete_log(log_id):
         flash('Log removed.', 'success')
     except Exception as e:
         db.session.rollback()
+        app.logger.error(f"Error deleting log: {e}")
         flash('Could not delete log.', 'danger')
         
     return redirect(url_for('dashboard'))
@@ -285,18 +313,18 @@ def delete_log(log_id):
 # Wellness Tools Route
 @app.route('/tools')
 @login_required
-def tools():
+def tools() -> str:
     return render_template('tools.html')
 
 # Resources Route
 @app.route('/resources')
 @login_required
-def resources():
+def resources() -> str:
     return render_template('resources.html')
 
 # User Authentication Routes
 @app.route('/register', methods=['GET', 'POST'])
-def register():
+def register() -> Union[str, Response]:
     if 'user_id' in session:
         return redirect(url_for('dashboard'))
         
@@ -305,12 +333,24 @@ def register():
         password = request.form.get('password', '')
         target_exam = request.form.get('target_exam', 'Board Exams')
         
+        # 1. Parameter Validation: Check if fields are empty
         if not username or not password:
             flash('Please fill in all details.', 'danger')
             return render_template('register.html')
             
-        if len(password) < 8:
-            flash('Password must be at least 8 characters long.', 'danger')
+        # 2. Parameter Validation: Username format and length
+        if not is_valid_username(username):
+            flash('Username must be 3-30 characters and contain only letters, numbers, or underscores.', 'danger')
+            return render_template('register.html')
+            
+        # 3. Parameter Validation: Password length limit
+        if len(password) < 8 or len(password) > 128:
+            flash('Password must be between 8 and 128 characters long.', 'danger')
+            return render_template('register.html')
+            
+        # 4. Parameter Validation: Target exam validation
+        if target_exam not in VALID_EXAMS:
+            flash('Invalid target examination selected.', 'danger')
             return render_template('register.html')
             
         existing_user = db.session.scalar(db.select(User).filter_by(username=username))
@@ -325,17 +365,20 @@ def register():
         
         try:
             db.session.commit()
+            # Prevent session fixation
+            session.clear()
             session['user_id'] = new_user.id
             flash(f'Welcome aboard, {username}! Start tracking your exam wellness.', 'success')
             return redirect(url_for('dashboard'))
         except Exception as e:
             db.session.rollback()
+            app.logger.error(f"Error registering user: {e}")
             flash('Registration failed. Please try again.', 'danger')
             
     return render_template('register.html')
 
 @app.route('/login', methods=['GET', 'POST'])
-def login():
+def login() -> Union[str, Response]:
     if 'user_id' in session:
         return redirect(url_for('dashboard'))
         
@@ -343,8 +386,15 @@ def login():
         username = request.form.get('username', '').strip()
         password = request.form.get('password', '')
         
+        # Validation parameter constraints
+        if len(username) > 30 or len(password) > 128:
+            flash('Invalid username or password.', 'danger')
+            return render_template('login.html')
+        
         user = db.session.scalar(db.select(User).filter_by(username=username))
         if user and check_password_hash(user.password_hash, password):
+            # Prevent session fixation
+            session.clear()
             session['user_id'] = user.id
             flash(f'Logged in successfully. Welcome back!', 'success')
             return redirect(url_for('dashboard'))
@@ -354,21 +404,29 @@ def login():
     return render_template('login.html')
 
 @app.route('/logout')
-def logout():
-    session.pop('user_id', None)
+def logout() -> Response:
+    # Completely destroy session to prevent session fixation/hijacking
+    session.clear()
     flash('You have logged out.', 'info')
     return redirect(url_for('login'))
-
 # ==========================================================================
 # Community & Peer Resilience Hub Routes
 # ==========================================================================
 @app.route('/community')
 @login_required
-def community():
+def community() -> Union[str, Response]:
     user = db.session.get(User, session['user_id'])
-    
-    # Query posts, newest first
-    posts = db.session.scalars(db.select(CommunityPost).order_by(CommunityPost.created_at.desc())).all()
+    if not user:
+        session.clear()
+        return redirect(url_for('login'))
+        
+    # Eager load reactions and replies relationships to resolve N+1 queries. Limit to latest 50 posts.
+    posts = db.session.scalars(
+        db.select(CommunityPost)
+        .options(selectinload(CommunityPost.reactions), selectinload(CommunityPost.replies))
+        .order_by(CommunityPost.created_at.desc())
+        .limit(50)
+    ).all()
     
     # Process reactions and user states for templates
     processed_posts = []
@@ -393,20 +451,28 @@ def community():
 
 @app.route('/community/post', methods=['POST'])
 @login_required
-def community_post():
+def community_post() -> Response:
     content = request.form.get('content', '').strip()
     stress_level_str = request.form.get('stress_level', '3')
     
-    if not content:
-        flash('Venting content cannot be empty.', 'danger')
+    # 1. Parameter Validation: content must be non-empty and <= 1000 characters
+    if not content or len(content) > 1000:
+        flash('Venting content must be between 1 and 1000 characters.', 'danger')
         return redirect(url_for('community'))
         
+    # 2. Parameter Validation: stress level range
     try:
         stress_level = int(stress_level_str)
+        if not (1 <= stress_level <= 5):
+            raise ValueError()
     except ValueError:
-        stress_level = 3
+        flash('Stress level must be an integer between 1 and 5.', 'danger')
+        return redirect(url_for('community'))
         
     user = db.session.get(User, session['user_id'])
+    if not user:
+        session.clear()
+        return redirect(url_for('login'))
     
     # Select a random calm/mindful avatar name
     import random
@@ -431,15 +497,20 @@ def community_post():
         flash('Shared with the community support circle.', 'success')
     except Exception as e:
         db.session.rollback()
+        app.logger.error(f"Error creating community post: {e}")
         flash('Error sharing post.', 'danger')
         
     return redirect(url_for('community'))
 
 @app.route('/community/react/<int:post_id>', methods=['POST'])
 @login_required
-def community_react(post_id):
+def community_react(post_id: int) -> Union[Response, Tuple[Response, int]]:
     reaction_type = request.form.get('reaction_type')
-    if reaction_type not in ['me_too', 'support', 'hug']:
+    
+    # 1. Parameter Validation: Check if reaction type is valid
+    if reaction_type not in {'me_too', 'support', 'hug'}:
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': False, 'error': 'Invalid reaction type'}), 400
         flash('Invalid reaction type.', 'danger')
         return redirect(url_for('community'))
         
@@ -479,25 +550,32 @@ def community_react(post_id):
             return jsonify({'success': True, 'action': action, 'count': count})
     except Exception as e:
         db.session.rollback()
+        app.logger.error(f"Error handling reaction: {e}")
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return jsonify({'success': False, 'error': 'Database error'})
+            return jsonify({'success': False, 'error': 'Database error'}), 500
             
     return redirect(url_for('community'))
 
 @app.route('/community/reply/<int:post_id>', methods=['POST'])
 @login_required
-def community_reply(post_id):
+def community_reply(post_id: int) -> Response:
     post = db.session.get(CommunityPost, post_id)
     if not post:
         flash('Post not found.', 'danger')
         return redirect(url_for('community'))
         
     content = request.form.get('content', '').strip()
-    if not content:
-        flash('Reply message cannot be empty.', 'danger')
+    
+    # 1. Parameter Validation: Check content length (1-250 characters)
+    if not content or len(content) > 250:
+        flash('Reply content must be between 1 and 250 characters.', 'danger')
         return redirect(url_for('community'))
         
     user = db.session.get(User, session['user_id'])
+    if not user:
+        session.clear()
+        return redirect(url_for('login'))
+        
     alias = f"Anonymous Peer ({user.target_exam} Aspirant)"
     
     new_reply = PeerMessage(
@@ -514,13 +592,14 @@ def community_reply(post_id):
         flash('Supportive message sent.', 'success')
     except Exception as e:
         db.session.rollback()
+        app.logger.error(f"Error replying to post: {e}")
         flash('Failed to reply.', 'danger')
         
     return redirect(url_for('community'))
 
 @app.route('/community/delete/<int:post_id>', methods=['POST'])
 @login_required
-def community_delete(post_id):
+def community_delete(post_id: int) -> Response:
     post = db.get_or_404(CommunityPost, post_id)
     if post.user_id != session['user_id']:
         flash('Access denied.', 'danger')
@@ -532,9 +611,11 @@ def community_delete(post_id):
         flash('Post removed from community board.', 'success')
     except Exception as e:
         db.session.rollback()
+        app.logger.error(f"Error deleting post: {e}")
         flash('Error removing post.', 'danger')
         
     return redirect(url_for('community'))
+
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
