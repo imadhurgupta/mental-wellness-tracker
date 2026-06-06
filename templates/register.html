@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+{% block title %}Register - MindSpace{% endblock %}
+
+{% block content %}
+<div class="auth-page">
+    <div class="glass-card auth-card">
+        <div class="auth-header">
+            <div class="brand-icon">
+                <svg viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m0-12.728l.707.707m11.314 11.314l.707.707M12 5a7 7 0 100 14 7 7 0 000-14z" />
+                </svg>
+            </div>
+            <h2>Create an Account</h2>
+            <p>Start tracking your mood & triggers today</p>
+        </div>
+        
+        <form action="{{ url_for('register') }}" method="POST">
+            <div class="form-group">
+                <label for="username" class="form-label">Username</label>
+                <input type="text" id="username" name="username" class="form-input" placeholder="Choose a username" required autocomplete="off">
+            </div>
+            
+            <div class="form-group">
+                <label for="password" class="form-label">Password</label>
+                <input type="password" id="password" name="password" class="form-input" placeholder="Create a password" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="target_exam" class="form-label">Target Examination</label>
+                <select id="target_exam" name="target_exam" class="form-input" required>
+                    <option value="JEE">JEE (Engineering)</option>
+                    <option value="NEET">NEET (Medical)</option>
+                    <option value="UPSC">UPSC Civil Services</option>
+                    <option value="CAT">CAT (Management)</option>
+                    <option value="GATE">GATE (Engineering PG)</option>
+                    <option value="CUET">CUET (University Entrance)</option>
+                    <option value="Board Exams">10th / 12th Board Exams</option>
+                    <option value="Other Entrance Exams">Other Competitive Exams</option>
+                </select>
+            </div>
+            
+            <button type="submit" class="btn-submit" style="width: 100%; margin-top: 1rem;">Register</button>
+        </form>
+        
+        <div class="auth-footer">
+            Already have an account? <a href="{{ url_for('login') }}">Log in here</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

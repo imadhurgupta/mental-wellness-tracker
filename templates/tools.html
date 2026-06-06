@@ -1,0 +1,80 @@
+{% extends 'base.html' %}
+{% block title %}Wellness Room - MindSpace{% endblock %}
+
+{% block content %}
+<header style="margin-bottom: 0.5rem;">
+    <h2 style="font-size: 2rem;">Wellness Room</h2>
+    <p style="color: var(--text-secondary);">Interactive grounding exercises and focus tools to manage exam anxiety and boost study efficiency.</p>
+</header>
+
+<div class="tools-grid">
+    <!-- Breathing Guide Room -->
+    <div class="glass-card breathing-room">
+        <h3 style="margin-bottom: 0.5rem;">Box Breathing Guide</h3>
+        <p style="color: var(--text-secondary); font-size: 0.875rem; margin-bottom: 2rem;">Used by Navy SEALs to relieve acute stress. Slow down, align with the bubble, and calm your nervous system.</p>
+        
+        <div class="breathing-circle-wrapper">
+            <div class="breathing-outer-ring"></div>
+            <div class="breathing-circle" id="breathingCircle">
+                <span class="breathing-instruction" id="breathingInstruction">Ready to Start</span>
+            </div>
+        </div>
+        
+        <div class="breathing-timer" id="breathingSeconds">4-4-4-4</div>
+        
+        <div class="breathing-controls">
+            <button id="btnStartBreathing" class="btn-tool">Start Breathing</button>
+        </div>
+    </div>
+    
+    <!-- Pomodoro Focus Timer -->
+    <div class="glass-card pomodoro-room">
+        <h3 style="margin-bottom: 0.5rem;">Pomodoro Focus Timer</h3>
+        <p style="color: var(--text-secondary); font-size: 0.875rem; margin-bottom: 2rem;">Maintain deep focus without burning out. Study intensely for 25 minutes, then take a complete mental break.</p>
+        
+        <div class="pomodoro-modes">
+            <button class="mode-tab active" data-mode="focus">Focus Block</button>
+            <button class="mode-tab" data-mode="break">Short Break</button>
+            <button class="mode-tab" data-mode="longBreak">Long Break</button>
+        </div>
+        
+        <div class="timer-display" id="timerText">25:00</div>
+        
+        <div class="timer-controls">
+            <button id="btnStartTimer" class="btn-submit">Start</button>
+            <button id="btnResetTimer" class="btn-tool">Reset</button>
+        </div>
+    </div>
+</div>
+
+<!-- Ambient Sound Synthesis -->
+<div class="glass-card" style="margin-top: 1rem;">
+    <h3 style="margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+        <svg style="width: 22px; height: 22px; stroke: var(--color-secondary); fill: none; stroke-width: 2;" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
+        </svg>
+        Stress Relief Corner - Synth Soundscapes
+    </h3>
+    <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 1.5rem;">Synthesize calming ambient noises in real-time. Pure sound, created directly in your browser. No external loading delays, ideal for study blocks.</p>
+    
+    <div class="sound-section">
+        <div class="sound-controls">
+            <div class="sound-card">
+                <div>
+                    <span style="display: block; font-weight: 600;">Calming Rain Synth</span>
+                    <span style="font-size: 0.75rem; color: var(--text-secondary);">Filter-sculpted white noise rain drops</span>
+                </div>
+                <button id="playRainBtn" class="btn-tool">Play Rain</button>
+            </div>
+            
+            <div class="sound-card">
+                <div>
+                    <span style="display: block; font-weight: 600;">Forest Wind Sweep</span>
+                    <span style="font-size: 0.75rem; color: var(--text-secondary);">Brownian noise modulated by a slow LFO</span>
+                </div>
+                <button id="playWindBtn" class="btn-tool">Play Wind</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

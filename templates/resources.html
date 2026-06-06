@@ -1,0 +1,104 @@
+{% extends 'base.html' %}
+{% block title %}Exam Advice - MindSpace{% endblock %}
+
+{% block content %}
+<header style="margin-bottom: 0.5rem;">
+    <h2 style="font-size: 2rem;">Exam Wellness Library</h2>
+    <p style="color: var(--text-secondary);">Curated cognitive tools, study techniques, and custom advice tailored for your preparation journey.</p>
+</header>
+
+<!-- Personalized Study Strategy Container -->
+<div class="glass-card advice-card" style="margin-bottom: 1.5rem;">
+    <h3 class="advice-title" style="color: #FFF;">
+        <svg style="width:22px;height:22px;stroke:var(--color-secondary);fill:none;stroke-width:2;" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9.663 17h4.673M12 3v1m6.364.364l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 113.536 0V21h-3.536v-4.757z" />
+        </svg>
+        Custom Strategy Guide: {{ current_student.target_exam }}
+    </h3>
+    
+    <p style="font-size: 0.95rem; margin-bottom: 1rem; color: var(--text-secondary);">
+        Based on your registration profile, here is a high-yield focus guide specifically for <strong>{{ current_student.target_exam }}</strong> aspirants:
+    </p>
+
+    <div style="font-size: 0.925rem; line-height: 1.7; color: var(--text-primary);">
+        {% if current_student.target_exam == 'JEE' %}
+            <ul style="margin-left: 1.25rem; display: flex; flex-direction: column; gap: 0.65rem;">
+                <li><strong>Combat the Speed Trap:</strong> JEE requires lightning-fast physics and mathematics solving. During practice, don't just solve questions; set a countdown. Time-boxing blocks exam anxiety.</li>
+                <li><strong>Analyze the Error Log:</strong> For math and physics calculations, compile a detailed "mistakes list." Review it before every mock test. Knowing where you tend to slip prevents test panic.</li>
+                <li><strong>Do Not Over-cram:</strong> Organic syntheses and coordinate geometry are heavily reliant on structured logic. Rested sleep increases spatial reasoning. Keep 7 hours of sleep non-negotiable.</li>
+            </ul>
+        {% elif current_student.target_exam == 'NEET' %}
+            <ul style="margin-left: 1.25rem; display: flex; flex-direction: column; gap: 0.65rem;">
+                <li><strong>Memory Retrieval Intervals:</strong> Biology requires heavy memorization. Use active recall (flashcards, blurt method) instead of reading NCERT notes repeatedly. This reduces frustration and self-doubt.</li>
+                <li><strong>Physics Fear Management:</strong> Many NEET students panic at calculations. Set aside 30 minutes daily to practice physics numericals with a calm mind, treating them as puzzles, not tests.</li>
+                <li><strong>Exam Day Visualization:</strong> Complete mock papers in the exact 2:00 PM to 5:20 PM slot to train your bio-clock and ease exam-day nervous symptoms.</li>
+            </ul>
+        {% elif current_student.target_exam == 'UPSC' %}
+            <ul style="margin-left: 1.25rem; display: flex; flex-direction: column; gap: 0.65rem;">
+                <li><strong>Burnout is a Real Enemy:</strong> The UPSC syllabus is vast, causing infinite pressure. Break your day into three 3-hour slots. Protect the boundary between slots. Sleep is a core study parameter.</li>
+                <li><strong>Process over Hype:</strong> Limit time spent on online coaching forums and social media discussion boards. They trigger peer comparison and anxiety. Your paper is between you and your syllabus.</li>
+                <li><strong>Mindful Writing:</strong> When practicing answer-writing, allow your thoughts to form before writing. Slow down your breathing during the first 2 minutes of writing practice.</li>
+            </ul>
+        {% elif current_student.target_exam == 'CAT' %}
+            <ul style="margin-left: 1.25rem; display: flex; flex-direction: column; gap: 0.65rem;">
+                <li><strong>Sectional Pressure Release:</strong> The hard sectional time limits in CAT cause stress. If one section goes poorly (e.g. tough DILR), immediately use a 10-second deep breath to clear your mind before the next.</li>
+                <li><strong>DILR Puzzle Mindset:</strong> Approach logical reasoning as a game, not an intelligence test. Approaching it with curiosity, rather than performance pressure, unlocks cognitive flow.</li>
+                <li><strong>Accuracy over Attempts:</strong> In CAT, high accuracy easily beats volume. Resist guessing from anxiety; select questions with care.</li>
+            </ul>
+        {% elif current_student.target_exam == 'GATE' %}
+            <ul style="margin-left: 1.25rem; display: flex; flex-direction: column; gap: 0.65rem;">
+                <li><strong>Formula Overload Stress:</strong> GATE covers vast technical concepts. Keep a formulas index cheat-sheet. Re-write them from memory rather than reviewing passively.</li>
+                <li><strong>Calculator Practice:</strong> Practice using the virtual calculator in mocks to avoid trivial calculation errors that lead to frustration.</li>
+                <li><strong>Pace Technical Study:</strong> Balance hard engineering math blocks with easy theory topics. Avoid studying two heavy conceptual chapters back-to-back.</li>
+            </ul>
+        {% elif current_student.target_exam == 'Board Exams' %}
+            <ul style="margin-left: 1.25rem; display: flex; flex-direction: column; gap: 0.65rem;">
+                <li><strong>First-time Board Stress:</strong> Board exams represent your first major public test. Remember, examiner scoring relies on structured steps, not perfection. Keep answers legible and clean.</li>
+                <li><strong>Manage Parental Pressure:</strong> Parents mean well, but their expectations can feel heavy. Set boundaries: study in a quiet area, and communicate when you need a rest.</li>
+                <li><strong>Write to Remember:</strong> Make concise outline summaries. Writing physical key-words cements memory much better than staring at textbooks.</li>
+            </ul>
+        {% else %}
+            <ul style="margin-left: 1.25rem; display: flex; flex-direction: column; gap: 0.65rem;">
+                <li><strong>Establish Micro-goals:</strong> Break down large subjects into 20-minute micro-tasks. Success in a micro-task triggers positive dopamine, lowering self-doubt.</li>
+                <li><strong>Use Breathing Breaks:</strong> If you feel a wave of panic or memory block, stop. Do a 2-minute physiological sigh (two quick inhales, followed by a long exhale).</li>
+                <li><strong>Pace your Study:</strong> Complete study blocks of 50 minutes, then separate yourself from your desk for a 10-minute stretch or walk.</li>
+            </ul>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Resource Cards Grid -->
+<div class="resources-grid">
+    <!-- Card 1 -->
+    <div class="glass-card resource-card">
+        <span class="resource-category">Anxiety Relief</span>
+        <h3>The Physiological Sigh Hack</h3>
+        <p>A fast, biological trick to halt a stress response. Inhale deeply through your nose, take a second quick sniff to fully inflate your lungs, then exhale slowly through your mouth. Doing this just twice lowers your heart rate instantly.</p>
+        <a href="{{ url_for('tools') }}" class="resource-link">Open Wellness Room &rarr;</a>
+    </div>
+
+    <!-- Card 2 -->
+    <div class="glass-card resource-card">
+        <span class="resource-category">Cognitive Habits</span>
+        <h3>Reframing Mock Test Slumps</h3>
+        <p>A low test score is not an intelligence metric. Reframe a low score as a helpful diagnostic checklist. Every question you miss now is a concept you can resolve before the actual exam. Treat your mocks with curiosity, not criticism.</p>
+        <a href="https://www.psychologytoday.com/us/basics/cognitive-reframing" target="_blank" class="resource-link">Read about Reframing &rarr;</a>
+    </div>
+
+    <!-- Card 3 -->
+    <div class="glass-card resource-card">
+        <span class="resource-category">Rest Science</span>
+        <h3>Sleep is a High-Yield Study Tool</h3>
+        <p>Late night cramming at the cost of sleep is counterproductive. Memory consolidation—translating temporary study concepts into long-term memory structures—only happens during REM sleep. Study less, sleep 7-8 hours, and perform better.</p>
+        <a href="https://www.health.harvard.edu/blog/sleep-learning-and-memory-202105252467" target="_blank" class="resource-link">Learn about Consolidation &rarr;</a>
+    </div>
+
+    <!-- Card 4 -->
+    <div class="glass-card resource-card">
+        <span class="resource-category">Focus Tactics</span>
+        <h3>Tackling Syllabus Backlogs</h3>
+        <p>Trying to catch up on a backlog in one go leads to panic and abandonment. Dedicate just one "Backlog Hour" in your day, and keep the remaining hours to current concepts. Consistent small steps beat sudden large pushes.</p>
+        <a href="{{ url_for('dashboard') }}" class="resource-link">Log your Backlog Stress &rarr;</a>
+    </div>
+</div>
+{% endblock %}

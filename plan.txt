@@ -1,0 +1,18 @@
+The "Community & Peer Resilience" Hub (Focus: Social Support)
+Many students feel isolated in their struggle. This model fosters a supportive, anonymous ecosystem.
+
+Core Feature: Anonymous "Venting Loops" and Peer Support.
+
+How it Works:
+
+Anonymized Sharing: Students can post their current stress level or specific challenges (e.g., "The physics syllabus feels impossible") to an anonymous board.
+
+Collective Validation: Others experiencing the same can "react" or share brief, supportive messages. This normalizes the struggle and reduces self-doubt.
+
+Expert Curated Content: Incorporate short, high-quality audio clips (1–3 minutes) from experts on managing test-day anxiety, specifically tailored to Indian competitive exams.
+
+
+Technical Recommendations for Implementation
+Security & Privacy: Since students are sharing sensitive emotional data, ensure end-to-end encryption and anonymous profiles. Use local storage (like SQLite or CoreData) for sensitive logs where possible.
+
+Design Language: Use a "Calm-First" UI. Opt for soft, calming color palettes (muted blues, greens, or warm earth tones) and plenty of white space. Avoid aggressive notifications or red alerts, which can increase anxiety.
