@@ -1,16 +1,20 @@
 import os
-from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
+import hmac
+import re
+from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, Response
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
 from models import db, User, MoodLog, StressTrigger, CommunityPost, PostReaction, PeerMessage
 from datetime import datetime, timedelta, timezone
+from sqlalchemy.orm import selectinload
+from typing import Union, Dict, List, Tuple, Any, Optional, Callable
 
 app = Flask(__name__)
 # Load secret key from environment variable in production, fall back to safe key locally
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY') or 'mental_wellness_local_development_fallback_key_123_xyz'
 
 # Session Cookie Policies for XSS/CSRF mitigation
-is_prod = os.environ.get('VERCEL') == '1'
+is_prod: bool = os.environ.get('VERCEL') == '1'
 app.config.update(
     SESSION_COOKIE_SECURE=is_prod,
     SESSION_COOKIE_HTTPONLY=True,
@@ -18,14 +22,17 @@ app.config.update(
 )
 
 # Configure Database: Use remote Postgres on Vercel/Prod if available, else local SQLite
-database_url = os.environ.get('DATABASE_URL') or os.environ.get('POSTGRES_URL')
+database_url: Optional[str] = os.environ.get('DATABASE_URL') or os.environ.get('POSTGRES_URL')
 if database_url:
     # SQLAlchemy 1.4+ requires postgresql:// instead of postgres://
     if database_url.startswith("postgres://"):
         database_url = database_url.replace("postgres://", "postgresql://", 1)
     app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 else:
-    db_path = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'database.db')
+    if os.environ.get('VERCEL') == '1':
+        db_path = '/tmp/database.db'
+    else:
+        db_path = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'database.db')
     app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
 
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -34,7 +41,28 @@ db.init_app(app)
 
 # Create database tables if they don't exist
 with app.app_context():
-    db.create_all()
+    try:
+        db.create_all()
+    except Exception as e:
+        app.logger.warning(f"Database table creation skipped or failed: {e}")
+
+# Predefined valid choices for parameter validation
+VALID_MOODS = {'Happy', 'Motivated', 'Calm', 'Tired', 'Self-Doubt', 'Stressed', 'Anxious', 'Burned Out'}
+VALID_TRIGGERS = {
+    'Mock Test Results',
+    'Syllabus Backlog',
+    'Time Management',
+    'Parental Expectation',
+    'Sleep Deprivation',
+    'Peer Pressure',
+    'Uncertainty'
+}
+VALID_EXAMS = {
+    'JEE', 'NEET', 'UPSC', 'CAT', 'GATE', 'CUET', 'Board Exams', 'Other Entrance Exams'
+}
+
+def is_valid_username(username: str) -> bool:
+    return bool(re.match(r'^[a-zA-Z0-9_]{3,30}$', username))
 
 # CSRF validation and token generation hooks
 @app.before_request
