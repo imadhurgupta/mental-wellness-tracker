@@ -1373,3 +1373,14 @@ select.form-input option {
     background: linear-gradient(to right, var(--color-primary), var(--color-secondary));
     transition: width 0.1s linear;
 }
+
+/* Keyboard Accessibility Focus Outlines */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 3px;
+    box-shadow: 0 0 8px rgba(147, 51, 234, 0.5);
+}

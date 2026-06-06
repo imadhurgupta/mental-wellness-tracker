@@ -376,8 +376,12 @@ function initPomodoroTimer() {
 
     modeTabs.forEach(tab => {
         tab.addEventListener('click', function () {
-            modeTabs.forEach(t => t.classList.remove('active'));
+            modeTabs.forEach(t => {
+                t.classList.remove('active');
+                t.setAttribute('aria-selected', 'false');
+            });
             this.classList.add('active');
+            this.setAttribute('aria-selected', 'true');
             
             currentMode = this.getAttribute('data-mode');
             resetTimer();
